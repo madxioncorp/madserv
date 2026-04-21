@@ -1,0 +1,1 @@
+"""MadServ application package."""

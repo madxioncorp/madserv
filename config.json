@@ -1,0 +1,11 @@
+{
+  "apache_port": 80,
+  "mysql_port": 3306,
+  "php_port": 8000,
+  "vhost_suffix": "test",
+  "apache_exe": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/Apache24/bin/httpd.exe",
+  "mysqld_exe": "E:\\laragon\\bin\\mysql\\mysql-8.0.30-winx64\\bin\\mysqld.EXE",
+  "mysql_exe": "E:\\laragon\\bin\\mysql\\mysql-8.0.30-winx64\\bin\\mysql.EXE",
+  "php_exe": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/php-8.5.5-Win32-vs17-x64/php.exe",
+  "php_ini": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/php-8.5.5-Win32-vs17-x64/php.ini"
+}

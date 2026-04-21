@@ -1,0 +1,48 @@
+# MadServ - MySQL / MariaDB configuration
+# Auto-generated from my.ini.template – do not edit manually.
+
+[client]
+port            = {port}
+socket          = /tmp/mysql.sock
+
+[mysqld]
+# Basic settings
+port            = {port}
+basedir         = {mysql_base}
+datadir         = {data_dir}
+socket          = /tmp/mysql.sock
+pid-file        = {data_dir}/mysql.pid
+
+# Networking
+bind-address    = 127.0.0.1
+max_connections = 100
+
+# Logging
+log-error       = {logs_dir}/mysql_error.log
+general_log     = 0
+general_log_file = {logs_dir}/mysql_general.log
+slow_query_log  = 0
+slow_query_log_file = {logs_dir}/mysql_slow.log
+long_query_time = 2
+
+# InnoDB settings
+default_storage_engine  = InnoDB
+innodb_buffer_pool_size = 128M
+innodb_log_file_size    = 48M
+innodb_flush_log_at_trx_commit = 1
+innodb_lock_wait_timeout = 50
+
+# Character set
+character-set-server    = utf8mb4
+collation-server        = utf8mb4_unicode_ci
+
+# SQL mode (permissive for development)
+sql_mode = ""
+
+[mysqldump]
+quick
+max_allowed_packet = 64M
+
+[mysql]
+no-auto-rehash
+default-character-set = utf8mb4

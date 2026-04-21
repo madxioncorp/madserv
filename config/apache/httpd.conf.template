@@ -1,0 +1,82 @@
+# MadServ - Apache httpd configuration
+# Auto-generated from httpd.conf.template – do not edit manually.
+
+ServerRoot "{server_root}"
+
+Listen {port}
+
+# ── Modules ────────────────────────────────────────────────────────────────
+LoadModule access_compat_module modules/mod_access_compat.so
+LoadModule actions_module modules/mod_actions.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule allowmethods_module modules/mod_allowmethods.so
+LoadModule auth_basic_module modules/mod_auth_basic.so
+LoadModule authn_core_module modules/mod_authn_core.so
+LoadModule authn_file_module modules/mod_authn_file.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule authz_groupfile_module modules/mod_authz_groupfile.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule authz_user_module modules/mod_authz_user.so
+LoadModule autoindex_module modules/mod_autoindex.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule env_module modules/mod_env.so
+LoadModule filter_module modules/mod_filter.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule isapi_module modules/mod_isapi.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule negotiation_module modules/mod_negotiation.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule reqtimeout_module modules/mod_reqtimeout.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule version_module modules/mod_version.so
+
+# ── PHP via mod_php ────────────────────────────────────────────────────────
+LoadFile "{php_dir}/php8ts.dll"
+LoadModule php_module "{php_dir}/php8apache2_4.dll"
+PHPIniDir "{php_dir}"
+AddType application/x-httpd-php .php .phtml .php3 .php4 .php5 .php7
+AddType application/x-httpd-php-source .phps
+
+# ── Rewrite engine (enabled globally, .htaccess can use RewriteRule) ───────
+RewriteEngine On
+
+# ── Server identity ────────────────────────────────────────────────────────
+ServerAdmin admin@localhost
+ServerName localhost:{port}
+
+# ── Default document root ──────────────────────────────────────────────────
+DocumentRoot "{www_default}"
+
+<Directory />
+    AllowOverride none
+    Require all denied
+</Directory>
+
+<Directory "{www_default}">
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+    DirectoryIndex index.php index.html index.htm
+</Directory>
+
+<Files ".ht*">
+    Require all denied
+</Files>
+
+# ── MIME types ─────────────────────────────────────────────────────────────
+TypesConfig "{server_root}/conf/mime.types"
+AddType application/x-compress .Z
+AddType application/x-gzip .gz .tgz
+AddDefaultCharset UTF-8
+
+# ── Logging ────────────────────────────────────────────────────────────────
+ErrorLog "{logs_dir}/apache_error.log"
+LogLevel warn
+
+LogFormat "%h %l %u %t \"%r\" %>s %b \"%{{Referer}}i\" \"%{{User-Agent}}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
+CustomLog "{logs_dir}/apache_access.log" combined
+
+# ── Virtual hosts ──────────────────────────────────────────────────────────
+IncludeOptional "{vhosts_dir}/*.conf"
