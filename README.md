@@ -1,5 +1,9 @@
 # MadServ v1.0.0
 
+<img width="901" height="667" alt="image" src="https://github.com/user-attachments/assets/d6356327-2edc-41a3-90a4-07b1b4f6b54f" />
+
+---
+
 A local development environment manager for Windows — inspired by [Laragon](https://laragon.org/).
 
 Built with Python and tkinter. No external GUI framework required for the core app.
