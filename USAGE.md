@@ -1,6 +1,6 @@
-# PyLaragon Usage Guide
+# MadServ Usage Guide
 
-Complete guide to using PyLaragon for local web development.
+Complete guide to using MadServ for local web development.
 
 ---
 
@@ -17,11 +17,11 @@ Complete guide to using PyLaragon for local web development.
 - MySQL 5.7+ or MariaDB (for database)
 - PHP 7.4+ (for PHP applications)
 
-### 2. Install PyLaragon
+### 2. Install MadServ
 
 ```bash
 # Clone or download the project
-cd pylaragon
+cd MadServ
 
 # Install optional dependencies (system tray, process management)
 pip install -r requirements.txt
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-On first launch, PyLaragon will:
+On first launch, MadServ will:
 - Auto-detect Apache, MySQL, and PHP installations
 - Create necessary directories (`www/`, `logs/`, `config/`)
 - Generate a default welcome page in `www/default/`
@@ -219,7 +219,7 @@ Access via **File → Settings** or **⚙ Settings** button.
 
 ### Auto-Detection
 
-PyLaragon checks these locations automatically:
+MadServ checks these locations automatically:
 
 **Apache:**
 - `C:\xampp\apache\bin\httpd.exe`
@@ -257,7 +257,7 @@ PyLaragon checks these locations automatically:
 - **Edit hosts file** – Open system hosts file in editor
 
 ### Help Menu
-- **About PyLaragon** – Version and info
+- **About MadServ** – Version and info
 
 ---
 
@@ -415,7 +415,7 @@ Then restart MySQL service.
 - **Adjust MySQL buffer pool** – Edit `my.ini.template`
 
 ### Security
-- **Never expose to internet** – PyLaragon is for local development only
+- **Never expose to internet** – MadServ is for local development only
 - **Use strong MySQL passwords** – Set via MySQL client
 - **Keep software updated** – Update Apache, MySQL, PHP regularly
 
@@ -522,8 +522,8 @@ When reporting issues, include:
 ## Uninstallation
 
 1. **Stop all services** – Click **■ Stop All**
-2. **Close PyLaragon**
-3. **Delete project folder** – Remove `pylaragon/` directory
+2. **Close MadServ**
+3. **Delete project folder** – Remove `MadServ/` directory
 4. **Clean hosts file** – Remove added entries
 5. **Optional:** Uninstall Apache, MySQL, PHP if no longer needed
 
