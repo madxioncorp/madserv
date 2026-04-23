@@ -1,4 +1,4 @@
-# MadServ v1.1.0
+# MadServ v1.2.0
 
 A local development environment manager for Windows — inspired by [Laragon](https://laragon.org/).
 
@@ -18,6 +18,12 @@ Built with Python and tkinter. No external GUI framework required for the core a
 - **Colored service buttons** — Green/red/blue buttons reflect real-time service state.
 - **Activity Log** — Live log output from each service in the Services tab.
 - **MySQL data persistence** — Data stored in `data/mysql/` at app root, survives MySQL version upgrades.
+- **Node.js & Go Support** — Run Node.js and Go (Golang) applications as standalone services.
+- **Project Isolation** — Prepend specific binary paths (Node/Go/PHP) to the environment `PATH` for each service.
+- **Multi-Version Manager** — Easily switch between multiple versions of PHP, Node.js, and Go via dropdown selectors in Settings.
+- **Custom App Paths** — Configure custom project folders for Node.js and Go applications.
+- **Self-Healing Templates** — Embedded default configurations allow the app to run even if `config/` files are missing.
+- **Redis Support** — Added Redis as a standalone service with automatic configuration and binary detection.
 
 ---
 
@@ -82,10 +88,12 @@ MadServ/
 └── app/
     ├── config.py                # Paths, ports, executable detection
     ├── services/
-    │   ├── base_service.py      # Abstract service base (process tree kill, DLL fix)
+    │   ├── base_service.py      # Abstract service base (process tree kill, DLL fix, PATH injection)
     │   ├── apache.py            # Apache httpd manager
     │   ├── mysql.py             # MySQL/MariaDB manager + auto-init
-    │   └── php.py               # PHP built-in server manager
+    │   ├── php.py               # PHP built-in server manager
+    │   ├── node.py              # Node.js service manager
+    │   └── go.py                # Go (Golang) service manager
     ├── managers/
     │   ├── vhost_manager.py     # Virtual host scanning & config generation
     │   └── php_ext_manager.py   # php.ini extension enable/disable + extension_dir fix
@@ -108,8 +116,10 @@ MadServ auto-detects executables on startup from these locations:
 | Apache  | `bin/Apache24/`, XAMPP, Apache24, system PATH |
 | MySQL   | `bin/mysql-*/`, XAMPP, MySQL 8/5.7, system PATH |
 | PHP     | `bin/php-*/`, XAMPP, `C:\php`, system PATH |
+| Node.js | `bin/node-*/`, `C:\Program Files\nodejs\`, system PATH |
+| Go      | `bin/go/`, `C:\Program Files\Go\`, system PATH |
 
-To override, open **File → Settings**. Each executable field has a **…** browse button.  
+To override or switch versions, open **File → Settings**. Use the **Binary Version Selection** dropdowns to pick from detected versions or use the **…** browse button to set paths manually.  
 Settings are saved to `config.json` at the app root.
 
 ---
@@ -157,6 +167,8 @@ The domain suffix is `.test` by default — change it in **File → Settings →
 | Apache       | 80      |
 | MySQL        | 3306    |
 | PHP (built-in) | 8000  |
+| Node.js      | 3000    |
+| Go           | 8080    |
 
 Change in **File → Settings**.
 

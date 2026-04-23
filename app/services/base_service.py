@@ -302,7 +302,20 @@ class BaseService(ABC):
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
         # Sanitised environment — strips PyInstaller dirs from PATH
-        kwargs["env"] = self._clean_env()
+        env = self._clean_env()
+        
+        # Prepend this service's executable directory to PATH so it can find its own tools
+        # (e.g. Node finding npm, Go finding other tools)
+        cmd = self._build_start_command()
+        if cmd:
+            exe_dir = str(Path(cmd[0]).parent)
+            path_val = env.get("PATH", "")
+            if path_val:
+                env["PATH"] = f"{exe_dir}{os.pathsep}{path_val}"
+            else:
+                env["PATH"] = exe_dir
+
+        kwargs["env"] = env
 
         return kwargs
 

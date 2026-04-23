@@ -13,6 +13,9 @@ from typing import Optional
 from app.services.apache import ApacheService
 from app.services.mysql import MySQLService
 from app.services.php import PHPService
+from app.services.node import NodeService
+from app.services.go import GoService
+from app.services.redis import RedisService
 from app.services.base_service import ServiceStatus
 from app.managers.vhost_manager import VHostManager
 from app.managers.php_ext_manager import PHPExtManager
@@ -28,8 +31,8 @@ class MainWindow:
     Hosts a Notebook with Services, Virtual Hosts, and PHP Extensions tabs.
     """
 
-    APP_TITLE = "MadServ v1.1.0"
-    APP_VERSION = "1.1.0"
+    APP_TITLE = "MadServ v1.2.0"
+    APP_VERSION = "1.2.0"
     REFRESH_INTERVAL_MS = 2000  # Status bar refresh
 
     def __init__(self, root: tk.Tk, config):
@@ -40,6 +43,9 @@ class MainWindow:
         self.apache = ApacheService(config)
         self.mysql = MySQLService(config)
         self.php = PHPService(config)
+        self.node = NodeService(config)
+        self.go = GoService(config)
+        self.redis = RedisService(config)
 
         # Managers
         self.vhost_manager = VHostManager(config)
@@ -67,8 +73,8 @@ class MainWindow:
 
     def _setup_window(self):
         self.root.title(self.APP_TITLE)
-        self.root.geometry("900x620")
-        self.root.minsize(700, 480)
+        self.root.geometry("900x680")
+        self.root.minsize(700, 500)
 
         # Set window icon from embedded base64 image
         try:
@@ -189,6 +195,9 @@ class MainWindow:
             apache=self.apache,
             mysql=self.mysql,
             php=self.php,
+            node=self.node,
+            go=self.go,
+            redis=self.redis,
         )
 
         # Virtual Hosts tab
@@ -298,7 +307,7 @@ class MainWindow:
         self.vhost_manager.open_hosts_file()
 
     def _open_settings(self):
-        SettingsDialog(self.root, self.config)
+        SettingsDialog(self.root, self.config, self.config.to_dict(), self)
 
     def _show_about(self):
         messagebox.showinfo(
@@ -315,21 +324,35 @@ class MainWindow:
 
     def _on_close(self):
         """Handle window close button — ask user: minimize to tray or exit."""
-        if self._tray_icon is not None:
+        if self._is_tray_available():
             # Offer choice: minimize to tray or exit
             answer = _ask_close_action(self.root)
             if answer == "tray":
+                # Ensure tray is running if user wants to minimize
+                if self._tray_icon is None:
+                    self._setup_tray()
+                
                 self.root.withdraw()
                 return
             elif answer == "exit":
                 self._quit_no_confirm()
             # else: cancelled, do nothing
         else:
+            # No tray support, just ask to exit
             self._quit()
+
+    def _is_tray_available(self) -> bool:
+        """Check if required libraries for system tray are installed."""
+        try:
+            import pystray
+            from PIL import Image
+            return True
+        except ImportError:
+            return False
 
     def _quit_no_confirm(self):
         """Exit without asking for confirmation (used after close dialog)."""
-        for svc in (self.apache, self.mysql, self.php):
+        for svc in (self.apache, self.mysql, self.php, self.node, self.go, self.redis):
             try:
                 svc.stop()
             except Exception:
@@ -377,19 +400,20 @@ class MainWindow:
                 pystray.MenuItem("Exit", lambda icon, item: self.root.after(0, self._quit)),
             )
 
-            self._tray_icon = pystray.Icon("madserv", img, "MadServ v1.0.0", menu)
+            self._tray_icon = pystray.Icon("madserv", img, f"MadServ v{self.APP_VERSION}", menu)
             threading.Thread(target=self._tray_icon.run, daemon=True).start()
 
-        except ImportError:
-            pass  # pystray not installed
+        except Exception as e:
+            print(f"Tray icon failed to initialize: {e}")
+            self._tray_icon = None
 
     def _start_all_sync(self):
-        for svc in (self.apache, self.mysql, self.php):
+        for svc in (self.apache, self.mysql, self.php, self.node, self.go, self.redis):
             if not svc.is_running():
                 svc.start()
 
     def _stop_all_sync(self):
-        for svc in (self.apache, self.mysql, self.php):
+        for svc in (self.apache, self.mysql, self.php, self.node, self.go, self.redis):
             if svc.is_running():
                 svc.stop()
 
@@ -456,7 +480,9 @@ class SettingsDialog(tk.Toplevel):
     """Settings editor dialog with browse buttons for file paths."""
 
     # Fields that are file paths and need a Browse button
-    _FILE_FIELDS = {"apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "php_ini"}
+    _FILE_FIELDS = {"apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "node_exe", "go_exe", "redis_exe", "php_ini"}
+    # Fields that are directory paths
+    _DIR_FIELDS = {"node_app_path", "go_app_path"}
 
     # filedialog filter per field key
     _FILE_FILTERS = {
@@ -464,12 +490,16 @@ class SettingsDialog(tk.Toplevel):
         "mysqld_exe":  [("Executable", "*.exe *.EXE mysqld"),        ("All files", "*.*")],
         "mysql_exe":   [("Executable", "*.exe *.EXE mysql"),         ("All files", "*.*")],
         "php_exe":     [("Executable", "*.exe *.EXE php"),           ("All files", "*.*")],
+        "node_exe":    [("Executable", "*.exe *.EXE node"),          ("All files", "*.*")],
+        "go_exe":      [("Executable", "*.exe *.EXE go"),            ("All files", "*.*")],
+        "redis_exe":   [("Executable", "*.exe *.EXE redis-server"),  ("All files", "*.*")],
         "php_ini":     [("INI file",   "*.ini"),                     ("All files", "*.*")],
     }
 
-    def __init__(self, parent, config):
+    def __init__(self, parent, config, data: dict, app=None):
         super().__init__(parent)
         self.config = config
+        self.app = app
         self.title("Settings")
         self.resizable(True, False)
         self.grab_set()
@@ -490,6 +520,7 @@ class SettingsDialog(tk.Toplevel):
             ("Apache Port",              "apache_port"),
             ("MySQL Port",               "mysql_port"),
             ("PHP Port (built-in server)", "php_port"),
+            ("Redis Port",               "redis_port"),
             ("VHost Suffix",             "vhost_suffix"),
         ]
         file_fields = [
@@ -497,26 +528,38 @@ class SettingsDialog(tk.Toplevel):
             ("mysqld Executable", "mysqld_exe"),
             ("mysql Client",      "mysql_exe"),
             ("PHP Executable",    "php_exe"),
+            ("Node Executable",   "node_exe"),
+            ("Go Executable",     "go_exe"),
+            ("Redis Executable",  "redis_exe"),
             ("php.ini Path",      "php_ini"),
         ]
+        dir_fields = [
+            ("Node App Path", "node_app_path"),
+            ("Go App Path",   "go_app_path"),
+        ]
+        ver_fields = [
+            ("PHP Version",   "php"),
+            ("Node Version",  "node"),
+            ("Go Version",    "go"),
+            ("Redis Version", "redis"),
+        ]
 
-        # ── Plain settings ──────────────────────────────────────────────
-        plain_lf = ttk.LabelFrame(self, text="General")
-        plain_lf.pack(fill=tk.X, padx=12, pady=(10, 4))
+        # ── Main columns container ──────────────────────────────────────
+        cols_frame = ttk.Frame(self)
+        cols_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        
+        left_col = ttk.Frame(cols_frame)
+        left_col.grid(row=0, column=0, sticky=tk.NSEW)
+        
+        right_col = ttk.Frame(cols_frame)
+        right_col.grid(row=0, column=1, sticky=tk.NSEW)
+        
+        cols_frame.columnconfigure(0, weight=1)
+        cols_frame.columnconfigure(1, weight=1)
 
-        for row, (label, key) in enumerate(plain_fields):
-            ttk.Label(plain_lf, text=label + ":").grid(
-                row=row, column=0, sticky=tk.W, **pad)
-            var = tk.StringVar(value=str(data.get(key, "")))
-            self._vars[key] = var
-            ttk.Entry(plain_lf, textvariable=var, width=20).grid(
-                row=row, column=1, sticky=tk.EW, **pad)
-
-        plain_lf.columnconfigure(1, weight=1)
-
-        # ── File path settings ──────────────────────────────────────────
-        file_lf = ttk.LabelFrame(self, text="Executable / File Paths")
-        file_lf.pack(fill=tk.X, padx=12, pady=(4, 4))
+        # ── Left Column: Executable paths ───────────────────────────────
+        file_lf = ttk.LabelFrame(left_col, text="Executable / File Paths")
+        file_lf.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
 
         for row, (label, key) in enumerate(file_fields):
             ttk.Label(file_lf, text=label + ":").grid(
@@ -525,7 +568,7 @@ class SettingsDialog(tk.Toplevel):
             var = tk.StringVar(value=str(data.get(key, "")))
             self._vars[key] = var
 
-            entry = ttk.Entry(file_lf, textvariable=var, width=52)
+            entry = ttk.Entry(file_lf, textvariable=var, width=40)
             entry.grid(row=row, column=1, sticky=tk.EW, **pad)
 
             # Browse button — capture key in default arg to avoid closure issue
@@ -537,33 +580,236 @@ class SettingsDialog(tk.Toplevel):
 
         file_lf.columnconfigure(1, weight=1)
 
+        # ── Right Column: General, Projects, Versions ───────────────────
+        
+        # 1. General
+        plain_lf = ttk.LabelFrame(right_col, text="General")
+        plain_lf.pack(fill=tk.X, padx=8, pady=4)
+
+        for row, (label, key) in enumerate(plain_fields):
+            ttk.Label(plain_lf, text=label + ":").grid(
+                row=row, column=0, sticky=tk.W, **pad)
+            var = tk.StringVar(value=str(data.get(key, "")))
+            self._vars[key] = var
+            ttk.Entry(plain_lf, textvariable=var, width=20).grid(
+                row=row, column=1, sticky=tk.EW, **pad)
+
+        plain_lf.columnconfigure(1, weight=1)
+
+        # 2. Directory settings
+        dir_lf = ttk.LabelFrame(right_col, text="Project / App Paths")
+        dir_lf.pack(fill=tk.X, padx=8, pady=4)
+
+        for row, (label, key) in enumerate(dir_fields):
+            ttk.Label(dir_lf, text=label + ":").grid(
+                row=row, column=0, sticky=tk.W, **pad)
+
+            var = tk.StringVar(value=str(data.get(key, "")))
+            self._vars[key] = var
+
+            entry = ttk.Entry(dir_lf, textvariable=var, width=40)
+            entry.grid(row=row, column=1, sticky=tk.EW, **pad)
+
+            browse_btn = ttk.Button(
+                dir_lf, text="…", width=3,
+                command=lambda k=key, v=var: self._browse(k, v),
+            )
+            browse_btn.grid(row=row, column=2, padx=(0, 8), pady=4)
+
+        dir_lf.columnconfigure(1, weight=1)
+
+        # 3. Version Selection
+        ver_lf = ttk.LabelFrame(right_col, text="Binary Version Selection")
+        ver_lf.pack(fill=tk.X, padx=8, pady=4)
+
+        self._ver_combos = {}
+        for row, (label, svc_key) in enumerate(ver_fields):
+            ttk.Label(ver_lf, text=label + ":").grid(row=row, column=0, sticky=tk.W, **pad)
+            
+            combo = ttk.Combobox(ver_lf, state="readonly", width=40)
+            combo.grid(row=row, column=1, sticky=tk.EW, **pad)
+            self._ver_combos[svc_key] = combo
+            
+            # Button to browse manually if not detected
+            ttk.Button(
+                ver_lf, text="…", width=3,
+                command=lambda k=svc_key: self._browse_exe(k),
+            ).grid(row=row, column=2, padx=(0, 8), pady=4)
+
+        ver_lf.columnconfigure(1, weight=1)
+        
+        # Load versions in background
+        threading.Thread(target=self._load_versions, daemon=True).start()
+
         # ── Buttons ─────────────────────────────────────────────────────
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill=tk.X, padx=12, pady=10)
+        
+        ttk.Button(btn_frame, text="Add to PATH",    command=self._add_to_path).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="Remove from PATH", command=self._remove_from_path).pack(side=tk.LEFT, padx=4)
+        
         ttk.Button(btn_frame, text="Save",   command=self._save).pack(side=tk.RIGHT, padx=4)
         ttk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side=tk.RIGHT)
 
+    def _add_to_path(self):
+        """Add configured paths to the system environment."""
+        from app.managers.env_manager import EnvManager
+        
+        # We need to save first to ensure we use the current paths in the UI
+        # or we can just use the ones from self._vars
+        mgr = EnvManager(self.config)
+        
+        # Temporary update config with UI values for path detection
+        original_values = {}
+        path_keys = ["apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "node_exe", "go_exe", "redis_exe"]
+        
+        for k in path_keys:
+            if k in self._vars:
+                original_values[k] = getattr(self.config, k)
+                setattr(self.config, k, self._vars[k].get())
+        
+        success, message = mgr.add_to_user_path()
+        
+        # Restore original values (user must click Save to persist)
+        for k, v in original_values.items():
+            setattr(self.config, k, v)
+            
+        if success:
+            messagebox.showinfo("Success", message)
+        else:
+            messagebox.showerror("Error", message)
+
+    def _remove_from_path(self):
+        """Remove configured paths from the system environment."""
+        from app.managers.env_manager import EnvManager
+        
+        mgr = EnvManager(self.config)
+        
+        # Temporary update config with UI values for path detection
+        original_values = {}
+        path_keys = ["apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "node_exe", "go_exe", "redis_exe"]
+        
+        for k in path_keys:
+            if k in self._vars:
+                original_values[k] = getattr(self.config, k)
+                setattr(self.config, k, self._vars[k].get())
+        
+        success, message = mgr.remove_from_user_path()
+        
+        # Restore original values
+        for k, v in original_values.items():
+            setattr(self.config, k, v)
+            
+        if success:
+            messagebox.showinfo("Success", message)
+        else:
+            messagebox.showerror("Error", message)
+
     def _browse(self, key: str, var: tk.StringVar):
-        """Open a file dialog and put the chosen path into var."""
+        """Open a file/directory dialog and put the chosen path into var."""
         from tkinter import filedialog
         from pathlib import Path
 
-        filetypes = self._FILE_FILTERS.get(key, [("All files", "*.*")])
-
-        # Start in the directory of the current value if it exists
         current = var.get().strip()
         initial_dir = str(Path(current).parent) if current and Path(current).exists() else "/"
 
-        path = filedialog.askopenfilename(
-            parent=self,
-            title=f"Select {key}",
-            initialdir=initial_dir,
-            filetypes=filetypes,
-        )
+        if key in self._DIR_FIELDS:
+            path = filedialog.askdirectory(
+                parent=self,
+                title=f"Select {key} Folder",
+                initialdir=current if current and Path(current).exists() else "/"
+            )
+        else:
+            filetypes = self._FILE_FILTERS.get(key, [("All files", "*.*")])
+            path = filedialog.askopenfilename(
+                parent=self,
+                title=f"Select {key}",
+                initialdir=initial_dir,
+                filetypes=filetypes,
+            )
+            
         if path:
             var.set(path)
 
+    def _browse_exe(self, svc_key: str):
+        """Browse for a specific executable manually."""
+        from tkinter import filedialog
+        exe_key = f"{svc_key}_exe"
+        filetypes = self._FILE_FILTERS.get(exe_key, [("Executable", "*.exe"), ("All files", "*.*")])
+        
+        path = filedialog.askopenfilename(
+            parent=self,
+            title=f"Select {svc_key.upper()} Executable",
+            filetypes=filetypes
+        )
+        if path:
+            # Add to combo and select it
+            combo = self._ver_combos[svc_key]
+            vals = list(combo["values"])
+            display_val = f"{path} (Manual)"
+            if display_val not in vals:
+                vals.append(display_val)
+                combo["values"] = vals
+            combo.set(display_val)
+            # Store path in a hidden var or handle in save
+            self._vars[exe_key].set(path)
+
+    def _load_versions(self):
+        """Discover available versions and populate combos."""
+        if not self.app:
+            return
+
+        services_map = {
+            "php":   self.app.php,
+            "node":  self.app.node,
+            "go":    self.app.go,
+            "redis": self.app.redis,
+        }
+
+        for svc_key, svc in services_map.items():
+            if not svc: continue
+            
+            versions = svc.discover_versions()
+            current_exe = self._vars.get(f"{svc_key}_exe").get()
+            
+            # Prepare display values
+            vals = []
+            selected_idx = -1
+            
+            for i, v in enumerate(versions):
+                display = f"{v['version']} — {v['exe']}"
+                vals.append(display)
+                if v['exe'] == current_exe:
+                    selected_idx = i
+            
+            # If current exe is not in discovered list, add it as Manual
+            if current_exe and selected_idx == -1:
+                vals.append(f"{current_exe} (Current)")
+                selected_idx = len(vals) - 1
+
+            # Update GUI on main thread
+            self.after(0, lambda c=self._ver_combos[svc_key], v=vals, s=selected_idx: self._update_combo(c, v, s))
+
+    def _update_combo(self, combo, values, selected_idx):
+        combo["values"] = values
+        if selected_idx >= 0:
+            combo.current(selected_idx)
+
     def _save(self):
+        # Update exe paths from combos if they changed
+        for svc_key, combo in self._ver_combos.items():
+            val = combo.get()
+            if " — " in val:
+                # Format: "version — path"
+                exe_path = val.split(" — ", 1)[1]
+                self._vars[f"{svc_key}_exe"].set(exe_path)
+            elif " (Manual)" in val:
+                exe_path = val.replace(" (Manual)", "")
+                self._vars[f"{svc_key}_exe"].set(exe_path)
+            elif " (Current)" in val:
+                exe_path = val.replace(" (Current)", "")
+                self._vars[f"{svc_key}_exe"].set(exe_path)
+
         data = {key: var.get() for key, var in self._vars.items()}
         self.config.update_from_dict(data)
         messagebox.showinfo(

@@ -133,9 +133,12 @@ class ServiceRow:
 
     def _get_port(self) -> str:
         name = self.service.name
-        if name == "Apache": return str(self.config.apache_port)
-        if name == "MySQL":  return str(self.config.mysql_port)
-        if name == "PHP":    return str(self.config.php_port)
+        if name == "Apache":  return str(self.config.apache_port)
+        if name == "MySQL":   return str(self.config.mysql_port)
+        if name == "PHP":     return str(self.config.php_port)
+        if name == "Redis":   return str(self.config.redis_port)
+        if name == "Node.js": return "3000"
+        if name == "Go":      return "8080"
         return "—"
 
     # ── Refresh ──────────────────────────────────────────────────────────────
@@ -237,10 +240,10 @@ class ServiceRow:
 class ServicesTab:
     REFRESH_MS = 2000
 
-    def __init__(self, parent: ttk.Frame, config, apache, mysql, php):
+    def __init__(self, parent: ttk.Frame, config, apache, mysql, php, node, go, redis):
         self.parent   = parent
         self.config   = config
-        self.services = [apache, mysql, php]
+        self.services = [apache, mysql, php, redis, node, go]
         self._rows: List[ServiceRow] = []
         self._build(parent)
         self._schedule_refresh()

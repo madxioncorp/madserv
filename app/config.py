@@ -62,18 +62,26 @@ class AppConfig:
         self.apache_port: int = 80
         self.mysql_port: int = 3306
         self.php_port: int = 8000  # for PHP built-in server
+        self.redis_port: int = 6379
 
         # Executable paths (auto-detected or user-configured)
         self.apache_exe: Optional[str] = None
-        self.mysql_exe: Optional[str] = None
         self.mysqld_exe: Optional[str] = None
+        self.mysql_exe: Optional[str] = None
         self.php_exe: Optional[str] = None
+        self.node_exe: Optional[str] = None
+        self.go_exe: Optional[str] = None
+        self.redis_exe: Optional[str] = None
 
         # PHP ini path
         self.php_ini: Optional[str] = None
 
         # Domain suffix for virtual hosts
         self.vhost_suffix: str = "test"
+
+        # Node and Go app paths
+        self.node_app_path: str = str(self.www_dir / "node_app")
+        self.go_app_path: str = str(self.www_dir / "go_app")
 
         # Auto-detect executables
         self._auto_detect()
@@ -359,7 +367,7 @@ default-character-set = utf8mb4
                 <p><?= date('Y-m-d H:i:s') ?></p>
             </div>
         </div>
-        <span class="badge">MadServ v1.1.0</span>
+        <span class="badge">MadServ v1.2.0</span>
         <p style="margin-top:20px; color:#555; font-size:0.8rem;">
             Place your projects in the <strong>www/</strong> folder.
         </p>
@@ -450,6 +458,64 @@ default-character-set = utf8mb4
             prioritize_local=True
         )
 
+        # 4. Node.js
+        node_local = None
+        if self.bin_dir.exists():
+            for sub in self.bin_dir.iterdir():
+                if sub.is_dir() and sub.name.lower().startswith("node"):
+                    node_candidate = sub / "node.exe"
+                    if node_candidate.exists():
+                        node_local = str(node_candidate)
+                        break
+        
+        self.node_exe = self._find_exe(
+            "node",
+            [
+                node_local,
+                r"C:\Program Files\nodejs\node.exe",
+            ],
+            prioritize_local=True
+        )
+
+        # 5. Go
+        go_local = None
+        if self.bin_dir.exists():
+            for sub in self.bin_dir.iterdir():
+                if sub.is_dir() and sub.name.lower() == "go":
+                    go_candidate = sub / "bin" / "go.exe"
+                    if go_candidate.exists():
+                        go_local = str(go_candidate)
+                        break
+        
+        self.go_exe = self._find_exe(
+            "go",
+            [
+                go_local,
+                r"C:\Program Files\Go\bin\go.exe",
+            ],
+            prioritize_local=True
+        )
+
+        # 6. Redis
+        redis_local = None
+        if self.bin_dir.exists():
+            for sub in self.bin_dir.iterdir():
+                if sub.is_dir() and sub.name.lower().startswith("redis"):
+                    redis_candidate = sub / "redis-server.exe"
+                    if redis_candidate.exists():
+                        redis_local = str(redis_candidate)
+                        break
+
+        self.redis_exe = self._find_exe(
+            "redis-server",
+            [
+                redis_local,
+                r"C:\Program Files\Redis\redis-server.exe",
+                r"C:\Redis\redis-server.exe",
+            ],
+            prioritize_local=True
+        )
+
         # Detect php.ini
         if self.php_exe:
             php_dir = Path(self.php_exe).parent
@@ -507,13 +573,16 @@ default-character-set = utf8mb4
             with open(self.config_file, "r", encoding="utf-8") as f:
                 data: Dict[str, Any] = json.load(f)
 
-            self.apache_port = data.get("apache_port", self.apache_port)
-            self.mysql_port = data.get("mysql_port", self.mysql_port)
-            self.php_port = data.get("php_port", self.php_port)
+            self.apache_port = int(data.get("apache_port", self.apache_port))
+            self.mysql_port = int(data.get("mysql_port", self.mysql_port))
+            self.php_port = int(data.get("php_port", self.php_port))
+            self.redis_port = int(data.get("redis_port", self.redis_port))
             self.vhost_suffix = data.get("vhost_suffix", self.vhost_suffix)
+            self.node_app_path = data.get("node_app_path", self.node_app_path)
+            self.go_app_path = data.get("go_app_path", self.go_app_path)
 
             # Only override exe paths if the saved path still exists
-            for attr in ("apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "php_ini"):
+            for attr in ("apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "node_exe", "go_exe", "php_ini"):
                 val = data.get(attr)
                 if val and Path(val).exists():
                     setattr(self, attr, val)
@@ -527,11 +596,17 @@ default-character-set = utf8mb4
             "apache_port": self.apache_port,
             "mysql_port": self.mysql_port,
             "php_port": self.php_port,
+            "redis_port": self.redis_port,
             "vhost_suffix": self.vhost_suffix,
+            "node_app_path": self.node_app_path,
+            "go_app_path": self.go_app_path,
             "apache_exe": self.apache_exe,
             "mysqld_exe": self.mysqld_exe,
             "mysql_exe": self.mysql_exe,
             "php_exe": self.php_exe,
+            "node_exe": self.node_exe,
+            "go_exe": self.go_exe,
+            "redis_exe": self.redis_exe,
             "php_ini": self.php_ini,
         }
         try:
@@ -546,11 +621,17 @@ default-character-set = utf8mb4
             "apache_port": self.apache_port,
             "mysql_port": self.mysql_port,
             "php_port": self.php_port,
+            "redis_port": self.redis_port,
             "vhost_suffix": self.vhost_suffix,
+            "node_app_path": self.node_app_path,
+            "go_app_path": self.go_app_path,
             "apache_exe": self.apache_exe or "",
             "mysqld_exe": self.mysqld_exe or "",
             "mysql_exe": self.mysql_exe or "",
             "php_exe": self.php_exe or "",
+            "node_exe": self.node_exe or "",
+            "go_exe": self.go_exe or "",
+            "redis_exe": self.redis_exe or "",
             "php_ini": self.php_ini or "",
             "www_dir": str(self.www_dir),
             "logs_dir": str(self.logs_dir),
@@ -558,8 +639,8 @@ default-character-set = utf8mb4
 
     def update_from_dict(self, data: Dict[str, Any]):
         """Update config from a dict (e.g. from settings dialog)."""
-        int_fields = ("apache_port", "mysql_port", "php_port")
-        str_fields = ("vhost_suffix", "apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "php_ini")
+        int_fields = ("apache_port", "mysql_port", "php_port", "redis_port")
+        str_fields = ("vhost_suffix", "node_app_path", "go_app_path", "apache_exe", "mysqld_exe", "mysql_exe", "php_exe", "node_exe", "go_exe", "redis_exe", "php_ini")
 
         for field in int_fields:
             if field in data:

@@ -4,17 +4,38 @@ All notable changes to MadServ are documented here.
 
 ---
 
+## [1.2.0] — 2026-04-24
+
+### Core
+- **Node.js & Go Support** — New services added for Node.js and Go (Golang) with automatic binary detection and project management.
+- **Redis Support** — Added Redis as a standalone service with automatic configuration and binary detection.
+- **Custom App Paths** — Ability to customize project folders for Node.js and Go via Settings.
+- **Binary Version Selection** — Easily switch between different installed versions of PHP, Node.js, and Go using dropdowns in the Settings dialog.
+- **Isolated Environment PATH** — Services now automatically prepend their specific binary directory to the environment `PATH` when running, ensuring the correct versions of tools (like `npm` or `go`) are used.
+- **Smart Binary Detection** — Enhanced auto-detection logic to find and prioritize executables in the local `bin/` folder.
+- **Improved Tray & Close Logic** — Fixed an issue where the close dialog was missing. Updated tray menu and "Start/Stop All" to include Node.js and Go.
+
+### Services
+- **Redis** — Added Redis as a standalone service with automatic configuration and binary detection.
+
+
+
+### PHP
+- **PHP Settings Manager** — Change common `php.ini` parameters directly from the GUI (e.g., `upload_max_filesize`, `post_max_size`).
+- **Enhanced Configuration** — Centralized PHP settings and extensions management in a single tab.
+
+---
+
 ## [1.1.0] — 2026-04-23
 
 ### Core
-
 - **Real-time Logging** — Captured process `stdout`/`stderr` is now displayed live in the Activity Log and written to log files with timestamps.
 - **Improved Process Management** — Output reading via dedicated threads ensures non-blocking GUI while services are running.
+- **Self-Healing Templates** — Embedded default configuration templates to ensure the app can recover even if `config/` folder is missing.
+- **Improved MySQL Initialization** — Added "Initializing" status indicator and better process locking during first-time database setup.
 
-### PHP
-
-- **PHP Settings Manager** — Change common `php.ini` parameters directly from the GUI (e.g., `upload_max_filesize`, `post_max_size`).
-- **Enhanced Configuration** — Centralized PHP settings and extensions management in a single tab.
+### Bug Fixes
+- **MySQL Version Detection** — Fixed an issue where the app version was incorrectly detected as the MySQL version on some systems.
 
 ---
 

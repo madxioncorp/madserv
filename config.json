@@ -2,10 +2,16 @@
   "apache_port": 80,
   "mysql_port": 3306,
   "php_port": 8000,
+  "redis_port": 6379,
   "vhost_suffix": "test",
-  "apache_exe": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/Apache24/bin/httpd.exe",
-  "mysqld_exe": "D:\\@WORK\\PYTHON\\NIXER\\output\\MadServ v1.0.0\\bin\\mysql-8.0.30-winx64\\bin\\mysqld.EXE",
-  "mysql_exe": "D:\\@WORK\\PYTHON\\NIXER\\output\\MadServ v1.0.0\\bin\\mysql-8.0.30-winx64\\bin\\mysql.EXE",
-  "php_exe": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/php-8.5.5-Win32-vs17-x64/php.exe",
-  "php_ini": "D:/@WORK/PYTHON/NIXER/output/MadServ v1.0.0/bin/php-8.5.5-Win32-vs17-x64/php.ini"
+  "node_app_path": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\www\\node_app",
+  "go_app_path": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\www\\go_app",
+  "apache_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\Apache24\\bin\\httpd.exe",
+  "mysqld_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\mysql-8.0.30-winx64\\bin\\mysqld.exe",
+  "mysql_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\mysql-8.0.30-winx64\\bin\\mysql.exe",
+  "php_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\php-8.5.5-Win32-vs17-x64\\php.exe",
+  "node_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\node-v24.15.0-win-x64\\node.exe",
+  "go_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\go\\bin\\go.exe",
+  "redis_exe": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\Redis-8.6.2-Windows-x64-msys2\\redis-server.exe",
+  "php_ini": "D:\\@WORK\\PYTHON\\MADSERV\\MADSERV\\bin\\php-8.5.5-Win32-vs17-x64\\php.ini"
 }
