@@ -86,7 +86,7 @@ class AppConfig:
     # ------------------------------------------------------------------
 
     def ensure_directories(self):
-        """Create required directories if they don't exist."""
+        """Create required directories and default files if they don't exist."""
         dirs = [
             self.www_dir,
             self.www_dir / "default",
@@ -104,6 +104,181 @@ class AppConfig:
         default_index = self.www_dir / "default" / "index.php"
         if not default_index.exists():
             self._write_default_index(default_index)
+
+        # Create default templates if missing
+        self._ensure_templates()
+
+    def _ensure_templates(self):
+        """Write default templates if they are missing from the config directory."""
+        templates = {
+            self.httpd_conf_template: self._DEFAULT_HTTPD_CONF_TEMPLATE,
+            self.vhost_conf_template: self._DEFAULT_VHOST_CONF_TEMPLATE,
+            self.mysql_conf_template: self._DEFAULT_MY_INI_TEMPLATE,
+        }
+        for path, content in templates.items():
+            if not path.exists():
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(content.strip(), encoding="utf-8")
+                    print(f"[Config] Created default template: {path.name}")
+                except OSError as e:
+                    print(f"[Config] Failed to create template {path.name}: {e}")
+
+    _DEFAULT_HTTPD_CONF_TEMPLATE = """
+# MadServ - Apache httpd configuration
+# Auto-generated from httpd.conf.template – do not edit manually.
+
+ServerRoot "{server_root}"
+
+Listen {port}
+
+# ── Modules ────────────────────────────────────────────────────────────────
+LoadModule access_compat_module modules/mod_access_compat.so
+LoadModule actions_module modules/mod_actions.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule allowmethods_module modules/mod_allowmethods.so
+LoadModule auth_basic_module modules/mod_auth_basic.so
+LoadModule authn_core_module modules/mod_authn_core.so
+LoadModule authn_file_module modules/mod_authn_file.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule authz_groupfile_module modules/mod_authz_groupfile.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule authz_user_module modules/mod_authz_user.so
+LoadModule autoindex_module modules/mod_autoindex.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule env_module modules/mod_env.so
+LoadModule filter_module modules/mod_filter.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule isapi_module modules/mod_isapi.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule negotiation_module modules/mod_negotiation.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule reqtimeout_module modules/mod_reqtimeout.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule version_module modules/mod_version.so
+
+# ── PHP via mod_php ────────────────────────────────────────────────────────
+LoadFile "{php_dir}/php8ts.dll"
+LoadModule php_module "{php_dir}/php8apache2_4.dll"
+PHPIniDir "{php_dir}"
+AddType application/x-httpd-php .php .phtml .php3 .php4 .php5 .php7
+AddType application/x-httpd-php-source .phps
+
+# ── Rewrite engine (enabled globally, .htaccess can use RewriteRule) ───────
+RewriteEngine On
+
+# ── Server identity ────────────────────────────────────────────────────────
+ServerAdmin admin@localhost
+ServerName localhost:{port}
+
+# ── Default document root ──────────────────────────────────────────────────
+DocumentRoot "{www_default}"
+
+<Directory />
+    AllowOverride none
+    Require all denied
+</Directory>
+
+<Directory "{www_default}">
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+    DirectoryIndex index.php index.html index.htm
+</Directory>
+
+<Files ".ht*">
+    Require all denied
+</Files>
+
+# ── MIME types ─────────────────────────────────────────────────────────────
+TypesConfig "{server_root}/conf/mime.types"
+AddType application/x-compress .Z
+AddType application/x-gzip .gz .tgz
+AddDefaultCharset UTF-8
+
+# ── Logging ────────────────────────────────────────────────────────────────
+ErrorLog "{logs_dir}/apache_error.log"
+LogLevel warn
+
+LogFormat "%h %l %u %t \\"%r\\" %>s %b \\"%{{Referer}}i\\" \\"%{{User-Agent}}i\\"" combined
+LogFormat "%h %l %u %t \\"%r\\" %>s %b" common
+CustomLog "{logs_dir}/apache_access.log" combined
+
+# ── Virtual hosts ──────────────────────────────────────────────────────────
+IncludeOptional "{vhosts_dir}/*.conf"
+"""
+
+    _DEFAULT_VHOST_CONF_TEMPLATE = """
+# MadServ Virtual Host – auto-generated
+# Domain: {domain}
+
+<VirtualHost *:{port}>
+    ServerName {domain}
+    DocumentRoot "{docroot}"
+
+    <Directory "{docroot}">
+        Options Indexes FollowSymLinks MultiViews
+        AllowOverride All
+        Require all granted
+        DirectoryIndex index.php index.html index.htm
+    </Directory>
+
+    ErrorLog "{logs_dir}/{domain}_error.log"
+    CustomLog "{logs_dir}/{domain}_access.log" combined
+</VirtualHost>
+"""
+
+    _DEFAULT_MY_INI_TEMPLATE = """
+# MadServ - MySQL / MariaDB configuration
+# Auto-generated from my.ini.template – do not edit manually.
+
+[client]
+port            = {port}
+socket          = /tmp/mysql.sock
+
+[mysqld]
+# Basic settings
+port            = {port}
+basedir         = {mysql_base}
+datadir         = {data_dir}
+socket          = /tmp/mysql.sock
+pid-file        = {data_dir}/mysql.pid
+
+# Networking
+bind-address    = 127.0.0.1
+max_connections = 100
+
+# Logging
+log-error       = {logs_dir}/mysql_error.log
+general_log     = 0
+general_log_file = {logs_dir}/mysql_general.log
+slow_query_log  = 0
+slow_query_log_file = {logs_dir}/mysql_slow.log
+long_query_time = 2
+
+# InnoDB settings
+default_storage_engine  = InnoDB
+innodb_buffer_pool_size = 128M
+innodb_log_file_size    = 48M
+innodb_flush_log_at_trx_commit = 1
+innodb_lock_wait_timeout = 50
+
+# Character set
+character-set-server    = utf8mb4
+collation-server        = utf8mb4_unicode_ci
+
+# SQL mode (permissive for development)
+sql_mode = ""
+
+[mysqldump]
+quick
+max_allowed_packet = 64M
+
+[mysql]
+no-auto-rehash
+default-character-set = utf8mb4
+"""
 
     def _write_default_index(self, path: Path):
         content = """<?php
@@ -184,7 +359,7 @@ class AppConfig:
                 <p><?= date('Y-m-d H:i:s') ?></p>
             </div>
         </div>
-        <span class="badge">MadServ v1.0</span>
+        <span class="badge">MadServ v1.1.0</span>
         <p style="margin-top:20px; color:#555; font-size:0.8rem;">
             Place your projects in the <strong>www/</strong> folder.
         </p>
@@ -199,59 +374,80 @@ class AppConfig:
     # ------------------------------------------------------------------
 
     def _auto_detect(self):
-        """Try to find executables in common locations."""
+        """Try to find executables in common locations, prioritizing local bin/."""
+        # 1. Apache
+        apache_local = self.bin_dir / "Apache24" / "bin" / "httpd.exe"
         self.apache_exe = self._find_exe(
             "httpd",
             [
+                str(apache_local),
                 r"C:\xampp\apache\bin\httpd.exe",
                 r"C:\Apache24\bin\httpd.exe",
                 r"C:\Apache2\bin\httpd.exe",
                 r"C:\laragon\bin\apache\apache2.4\bin\httpd.exe",
-                "/usr/sbin/apache2",
-                "/usr/sbin/httpd",
-                "/usr/local/sbin/httpd",
-                "/opt/homebrew/sbin/httpd",
             ],
+            prioritize_local=True
         )
+
+        # 2. MySQL / MariaDB
+        # Search in bin/ for any directory starting with 'mysql' or 'mariadb'
+        mysql_local_bin = None
+        mysqld_local_bin = None
+        if self.bin_dir.exists():
+            for sub in self.bin_dir.iterdir():
+                if sub.is_dir() and (sub.name.lower().startswith("mysql") or sub.name.lower().startswith("mariadb")):
+                    mysqld_candidate = sub / "bin" / "mysqld.exe"
+                    mysql_candidate = sub / "bin" / "mysql.exe"
+                    if mysqld_candidate.exists():
+                        mysqld_local_bin = str(mysqld_candidate)
+                    if mysql_candidate.exists():
+                        mysql_local_bin = str(mysql_candidate)
+                    break
 
         self.mysqld_exe = self._find_exe(
             "mysqld",
             [
+                mysqld_local_bin,
                 r"C:\xampp\mysql\bin\mysqld.exe",
                 r"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe",
                 r"C:\Program Files\MySQL\MySQL Server 5.7\bin\mysqld.exe",
                 r"C:\laragon\bin\mysql\mysql-8.0\bin\mysqld.exe",
-                r"C:\laragon\bin\mysql\mysql-5.7\bin\mysqld.exe",
-                "/usr/sbin/mysqld",
-                "/usr/local/sbin/mysqld",
-                "/opt/homebrew/bin/mysqld",
             ],
+            prioritize_local=True
         )
 
         self.mysql_exe = self._find_exe(
             "mysql",
             [
+                mysql_local_bin,
                 r"C:\xampp\mysql\bin\mysql.exe",
                 r"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe",
                 r"C:\laragon\bin\mysql\mysql-8.0\bin\mysql.exe",
-                "/usr/bin/mysql",
-                "/usr/local/bin/mysql",
-                "/opt/homebrew/bin/mysql",
             ],
+            prioritize_local=True
         )
+
+        # 3. PHP
+        php_local = None
+        if self.bin_dir.exists():
+            for sub in self.bin_dir.iterdir():
+                if sub.is_dir() and sub.name.lower().startswith("php"):
+                    php_candidate = sub / "php.exe"
+                    if php_candidate.exists():
+                        php_local = str(php_candidate)
+                        break
 
         self.php_exe = self._find_exe(
             "php",
             [
+                php_local,
                 r"C:\xampp\php\php.exe",
                 r"C:\php\php.exe",
                 r"C:\laragon\bin\php\php-8.1\php.exe",
                 r"C:\laragon\bin\php\php-8.0\php.exe",
                 r"C:\laragon\bin\php\php-7.4\php.exe",
-                "/usr/bin/php",
-                "/usr/local/bin/php",
-                "/opt/homebrew/bin/php",
             ],
+            prioritize_local=True
         )
 
         # Detect php.ini
@@ -262,8 +458,21 @@ class AppConfig:
                     self.php_ini = str(candidate)
                     break
 
-    def _find_exe(self, name: str, candidates: list) -> Optional[str]:
-        """Find an executable: check PATH first, then known locations."""
+    def _find_exe(self, name: str, candidates: list, prioritize_local: bool = False) -> Optional[str]:
+        """
+        Find an executable.
+        If prioritize_local is True, it checks the provided candidates list first
+        (which should contain local paths) before checking the system PATH.
+        """
+        # Filter out None from candidates
+        candidates = [c for c in candidates if c]
+
+        if prioritize_local:
+            # Check known locations first (local paths are at the top of the list)
+            for path in candidates:
+                if Path(path).exists():
+                    return str(path)
+
         # Check PATH
         found = shutil.which(name)
         if found:
@@ -273,10 +482,13 @@ class AppConfig:
             found = shutil.which(name + ".exe")
             if found:
                 return found
-        # Check known locations
-        for path in candidates:
-            if Path(path).exists():
-                return str(path)
+
+        if not prioritize_local:
+            # Check known locations after PATH
+            for path in candidates:
+                if Path(path).exists():
+                    return str(path)
+
         return None
 
     # ------------------------------------------------------------------

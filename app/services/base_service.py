@@ -17,6 +17,7 @@ class ServiceStatus:
     STOPPED = "Stopped"
     RUNNING = "Running"
     STARTING = "Starting"
+    INITIALIZING = "Initializing"
     STOPPING = "Stopping"
     ERROR = "Error"
     NOT_FOUND = "Not Found"
@@ -77,7 +78,19 @@ class BaseService(ABC):
         self._log_callbacks.append(cb)
 
     def _log(self, message: str):
-        print(f"[{self.name}] {message}")
+        formatted = f"[{self.name}] {message}"
+        print(formatted)
+
+        # Also write to the log file if it's open
+        if self._log_file is not None:
+            try:
+                # Add timestamp for internal messages
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                self._log_file.write(f"[{timestamp}] {formatted}\n".encode("utf-8", errors="replace"))
+                self._log_file.flush()
+            except OSError:
+                pass
+
         for cb in self._log_callbacks:
             try:
                 cb(message)
@@ -102,13 +115,23 @@ class BaseService(ABC):
             self._log("Already running.")
             return True
 
+        self._set_status(ServiceStatus.STARTING)
+
         cmd = self._build_start_command()
         if not cmd:
             self._set_status(ServiceStatus.NOT_FOUND)
             self._log("Executable not found – cannot start.")
             return False
 
-        self._set_status(ServiceStatus.STARTING)
+        # Open log file early so _log can write to it
+        log_path = self.get_log_path()
+        if log_path:
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                self._log_file = open(log_path, "ab")
+            except OSError:
+                self._log_file = None
+
         self._log(f"Starting: {' '.join(str(c) for c in cmd)}")
 
         try:
@@ -124,20 +147,13 @@ class BaseService(ABC):
             with self._lock:
                 self._process = subprocess.Popen(cmd, **kwargs)
 
+            # Start the output reader thread
+            threading.Thread(target=self._read_output, daemon=True).start()
+
             # Give the process a moment to fail fast
             time.sleep(0.8)
             if self._process.poll() is not None:
                 rc = self._process.returncode
-                # Try to read last few lines from log file for diagnostics
-                log_path = self.get_log_path()
-                if log_path and log_path.exists():
-                    try:
-                        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-                        for line in lines[-10:]:
-                            if line.strip():
-                                self._log(f"  {line.strip()}")
-                    except Exception:
-                        pass
                 self._set_status(ServiceStatus.ERROR)
                 self._log(f"Process exited immediately with code {rc}.")
                 return False
@@ -273,27 +289,14 @@ class BaseService(ABC):
 
     def _popen_kwargs(self) -> dict:
         """Build kwargs for subprocess.Popen."""
-        log_path = self.get_log_path()
-        if log_path:
-            try:
-                log_path.parent.mkdir(parents=True, exist_ok=True)
-                self._log_file = open(log_path, "ab")
-                kwargs: dict = {
-                    "stdout": self._log_file,
-                    "stderr": self._log_file,
-                }
-            except OSError:
-                self._log_file = None
-                kwargs = {
-                    "stdout": subprocess.DEVNULL,
-                    "stderr": subprocess.DEVNULL,
-                }
-        else:
-            self._log_file = None
-            kwargs = {
-                "stdout": subprocess.DEVNULL,
-                "stderr": subprocess.DEVNULL,
-            }
+        # Use PIPEs so we can read output in real-time and show it in GUI.
+        # We merge stderr into stdout for easier reading.
+        kwargs: dict = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": False,  # Read bytes to avoid encoding issues
+            "bufsize": 1,   # Line buffered (if text=True), but we'll read by line
+        }
 
         if sys.platform == "win32":
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
@@ -302,6 +305,39 @@ class BaseService(ABC):
         kwargs["env"] = self._clean_env()
 
         return kwargs
+
+    def _read_output(self):
+        """Read process output and log it in real-time."""
+        proc = self._process
+        if not proc or not proc.stdout:
+            return
+
+        # Read line by line until EOF
+        for line_bytes in iter(proc.stdout.readline, b""):
+            try:
+                # Decode for GUI display
+                msg = line_bytes.decode("utf-8", errors="replace").rstrip()
+
+                # Write raw bytes to the log file if open
+                if self._log_file is not None:
+                    try:
+                        self._log_file.write(line_bytes)
+                        self._log_file.flush()
+                    except OSError:
+                        pass
+
+                # Forward to GUI callbacks
+                for cb in self._log_callbacks:
+                    try:
+                        cb(msg)
+                    except Exception:
+                        pass
+
+                # Also print to console for debug
+                print(f"[{self.name} output] {msg}")
+
+            except Exception as e:
+                print(f"Error reading output from {self.name}: {e}")
 
     @staticmethod
     def _clean_env() -> dict:

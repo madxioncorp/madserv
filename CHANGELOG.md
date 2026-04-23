@@ -4,6 +4,20 @@ All notable changes to MadServ are documented here.
 
 ---
 
+## [1.1.0] — 2026-04-23
+
+### Core
+
+- **Real-time Logging** — Captured process `stdout`/`stderr` is now displayed live in the Activity Log and written to log files with timestamps.
+- **Improved Process Management** — Output reading via dedicated threads ensures non-blocking GUI while services are running.
+
+### PHP
+
+- **PHP Settings Manager** — Change common `php.ini` parameters directly from the GUI (e.g., `upload_max_filesize`, `post_max_size`).
+- **Enhanced Configuration** — Centralized PHP settings and extensions management in a single tab.
+
+---
+
 ## [1.0.0] — 2026-04-21
 
 Initial release.

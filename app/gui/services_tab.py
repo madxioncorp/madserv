@@ -16,6 +16,7 @@ STATUS_DOT_COLOR: Dict[str, str] = {
     ServiceStatus.RUNNING:   "#27ae60",   # green
     ServiceStatus.STOPPED:   "#e74c3c",   # red
     ServiceStatus.STARTING:  "#f39c12",   # orange
+    ServiceStatus.INITIALIZING: "#f39c12", # orange
     ServiceStatus.STOPPING:  "#f39c12",   # orange
     ServiceStatus.ERROR:     "#c0392b",   # dark red
     ServiceStatus.NOT_FOUND: "#95a5a6",   # grey
@@ -25,6 +26,7 @@ STATUS_LABEL_COLOR: Dict[str, str] = {
     ServiceStatus.RUNNING:   "#27ae60",
     ServiceStatus.STOPPED:   "#e74c3c",
     ServiceStatus.STARTING:  "#e67e22",
+    ServiceStatus.INITIALIZING: "#e67e22",
     ServiceStatus.STOPPING:  "#e67e22",
     ServiceStatus.ERROR:     "#c0392b",
     ServiceStatus.NOT_FOUND: "#7f8c8d",
@@ -160,7 +162,7 @@ class ServiceRow:
             threading.Thread(target=self._fetch_version, daemon=True).start()
 
         # ── Button state + colour ────────────────────────────────────────
-        transitioning = status in (ServiceStatus.STARTING, ServiceStatus.STOPPING)
+        transitioning = status in (ServiceStatus.STARTING, ServiceStatus.INITIALIZING, ServiceStatus.STOPPING)
 
         if running:
             # Running → Start disabled (greyed), Stop & Restart enabled

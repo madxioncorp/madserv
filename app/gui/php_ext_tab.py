@@ -16,19 +16,26 @@ class PHPExtTab:
     Changes are applied to php.ini when the user clicks "Apply Changes".
     """
 
-    def __init__(self, parent: ttk.Frame, config, ext_manager: PHPExtManager, php_service):
+    def __init__(self, parent: ttk.Frame, config, ext_manager: PHPExtManager, 
+                 setting_manager, php_service):
         self.parent = parent
         self.config = config
         self.ext_manager = ext_manager
+        self.setting_manager = setting_manager
         self.php_service = php_service
 
         # {ext_name: BooleanVar}
         self._check_vars: Dict[str, tk.BooleanVar] = {}
         # {ext_name: original_enabled}
         self._original_states: Dict[str, bool] = {}
+        
+        # {setting_key: StringVar}
+        self._setting_vars: Dict[str, tk.StringVar] = {}
+        # {setting_key: original_value}
+        self._original_settings: Dict[str, str] = {}
 
         self._build(parent)
-        self._load_extensions()
+        self._load_all()
 
     # ------------------------------------------------------------------
     # Build UI
@@ -55,9 +62,30 @@ class PHPExtTab:
         ttk.Button(top, text="✔ Apply Changes", command=self._apply_changes).pack(
             side=tk.RIGHT, padx=4
         )
-        ttk.Button(top, text="↺ Refresh List", command=self._load_extensions).pack(
+        ttk.Button(top, text="↺ Refresh List", command=self._load_all).pack(
             side=tk.RIGHT, padx=4
         )
+
+        # ── General PHP Settings ──────────────────────────────────────────
+        settings_frame = ttk.LabelFrame(parent, text="General Settings")
+        settings_frame.pack(fill=tk.X, padx=8, pady=4)
+
+        pad = {"padx": 10, "pady": 5}
+        
+        # Row 1: upload_max_filesize and post_max_size
+        ttk.Label(settings_frame, text="upload_max_filesize:").grid(row=0, column=0, sticky=tk.W, **pad)
+        u_var = tk.StringVar()
+        u_var.trace_add("write", lambda *args: self._on_setting_change())
+        self._setting_vars["upload_max_filesize"] = u_var
+        ttk.Entry(settings_frame, textvariable=u_var, width=10).grid(row=0, column=1, sticky=tk.W, **pad)
+        ttk.Label(settings_frame, text="(e.g. 10M, 2G)", foreground="#888").grid(row=0, column=2, sticky=tk.W, **pad)
+
+        ttk.Label(settings_frame, text="post_max_size:").grid(row=0, column=3, sticky=tk.W, **pad)
+        p_var = tk.StringVar()
+        p_var.trace_add("write", lambda *args: self._on_setting_change())
+        self._setting_vars["post_max_size"] = p_var
+        ttk.Entry(settings_frame, textvariable=p_var, width=10).grid(row=0, column=4, sticky=tk.W, **pad)
+        ttk.Label(settings_frame, text="(e.g. 12M, 2G)", foreground="#888").grid(row=0, column=5, sticky=tk.W, **pad)
 
         # Search bar
         search_frame = ttk.Frame(parent)
@@ -127,20 +155,36 @@ class PHPExtTab:
     # Loading
     # ------------------------------------------------------------------
 
-    def _load_extensions(self):
-        """Load extensions from php.ini in a background thread."""
+    def _load_all(self):
+        """Load extensions and settings from php.ini."""
         self.ini_var.set(self.config.php_ini or "php.ini not found")
 
         def _do():
+            # Load extensions
             self.ext_manager.reload()
             grouped = self.ext_manager.get_extensions_by_category()
-            # Schedule GUI update on main thread via parent widget
-            self.parent.after(0, lambda: self._populate(grouped))
+            
+            # Load settings
+            self.setting_manager.load()
+            settings = {
+                key: self.setting_manager.get_setting(key) or ""
+                for key in self._setting_vars.keys()
+            }
+            
+            # Schedule GUI update on main thread
+            self.parent.after(0, lambda: self._populate_all(grouped, settings))
 
         threading.Thread(target=_do, daemon=True).start()
 
-    def _populate(self, grouped: Dict[str, List[PHPExtension]]):
-        """Populate the scrollable list with extension checkboxes."""
+    def _populate_all(self, grouped: Dict[str, List[PHPExtension]], settings: Dict[str, str]):
+        """Populate the scrollable list and setting fields."""
+        # 1. Update Settings
+        self._original_settings.clear()
+        for key, value in settings.items():
+            self._setting_vars[key].set(value)
+            self._original_settings[key] = value
+
+        # 2. Update Extensions
         # Clear existing widgets
         for widget in self.inner_frame.winfo_children():
             widget.destroy()
@@ -230,14 +274,20 @@ class PHPExtTab:
     def _on_check_change(self):
         self._update_change_indicator()
 
+    def _on_setting_change(self):
+        self._update_change_indicator()
+
     def _update_change_indicator(self):
-        changes = self._get_pending_changes()
-        if changes:
-            self.change_var.set(f"⚠ {len(changes)} unsaved change(s)")
+        ext_changes = self._get_pending_ext_changes()
+        set_changes = self._get_pending_setting_changes()
+        total = len(ext_changes) + len(set_changes)
+        
+        if total > 0:
+            self.change_var.set(f"⚠ {total} unsaved change(s)")
         else:
             self.change_var.set("")
 
-    def _get_pending_changes(self) -> Dict[str, bool]:
+    def _get_pending_ext_changes(self) -> Dict[str, bool]:
         """Return {name: new_state} for extensions whose state has changed."""
         changes = {}
         for name, var in self._check_vars.items():
@@ -246,49 +296,53 @@ class PHPExtTab:
                 changes[name] = new_val
         return changes
 
+    def _get_pending_setting_changes(self) -> Dict[str, str]:
+        """Return {key: new_value} for settings that have changed."""
+        changes = {}
+        for key, var in self._setting_vars.items():
+            new_val = var.get().strip()
+            if new_val != self._original_settings.get(key, ""):
+                changes[key] = new_val
+        return changes
+
     def _apply_changes(self):
-        changes = self._get_pending_changes()
-        if not changes:
-            messagebox.showinfo("No Changes", "No changes to apply.")
-            return
-
-        ini_path = self.config.php_ini
-        if not ini_path:
-            messagebox.showerror(
-                "Error",
-                "php.ini path is not configured.\n"
-                "Set it in File → Settings.",
-            )
-            return
-
-        summary = "\n".join(
-            f"  {'Enable' if v else 'Disable'}: {k}" for k, v in changes.items()
-        )
-        if not messagebox.askyesno(
-            "Apply Changes",
-            f"Apply the following changes to php.ini?\n\n{summary}",
-        ):
+        ext_changes = self._get_pending_ext_changes()
+        set_changes = self._get_pending_setting_changes()
+        
+        if not ext_changes and not set_changes:
             return
 
         def _do():
-            count, errors = self.ext_manager.apply_changes(changes)
-            def _update():
+            errors = []
+            changed_count = 0
+            
+            # Apply extension changes
+            if ext_changes:
+                count, errs = self.ext_manager.apply_changes(ext_changes)
+                changed_count += count
+                errors.extend(errs)
+            
+            # Apply setting changes
+            if set_changes:
+                count, errs = self.setting_manager.set_settings(set_changes)
+                changed_count += count
+                errors.extend(errs)
+
+            def _done():
                 if errors:
-                    messagebox.showerror(
-                        "Errors",
-                        f"Applied {count} change(s) with errors:\n" + "\n".join(errors),
+                    messagebox.showerror("Error", "\n".join(errors))
+                
+                if changed_count > 0:
+                    self._load_all()  # Refresh everything
+                    messagebox.showinfo(
+                        "Success",
+                        f"Applied {changed_count} change(s) to php.ini.\n"
+                        "Restart Apache/PHP for changes to take effect.",
                     )
                 else:
-                    messagebox.showinfo(
-                        "Done",
-                        f"Applied {count} change(s) to php.ini.\n"
-                        "Restart PHP for changes to take effect.",
-                    )
-                # Update original states
-                for name, val in changes.items():
-                    self._original_states[name] = val
-                self._update_change_indicator()
-            self.parent.after(0, _update)
+                    self._update_change_indicator()
+
+            self.parent.after(0, _done)
 
         threading.Thread(target=_do, daemon=True).start()
 
@@ -310,8 +364,14 @@ class PHPExtTab:
         self._update_change_indicator()
 
     def _reset_changes(self):
+        # Reset extensions
         for name, var in self._check_vars.items():
             var.set(self._original_states.get(name, False))
+        
+        # Reset settings
+        for key, var in self._setting_vars.items():
+            var.set(self._original_settings.get(key, ""))
+            
         self._update_change_indicator()
 
     # ------------------------------------------------------------------

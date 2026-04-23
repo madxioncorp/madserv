@@ -47,8 +47,12 @@ class MySQLService(BaseService):
                 **kwargs,
             )
             output = result.stdout + result.stderr
-            # Match "8.0.32", "5.7.41", "10.6.12-MariaDB", etc.
-            match = re.search(r"(\d+\.\d+\.\d+[\w.-]*)", output)
+            # Look for "Ver X.Y.Z" or "version X.Y.Z" to avoid matching version strings in the path
+            match = re.search(r"(?:Ver|version)\s+(\d+\.\d+\.\d+[\w.-]*)", output, re.IGNORECASE)
+            if not match:
+                # Fallback to generic version match if keywords not found
+                match = re.search(r"(\d+\.\d+\.\d+[\w.-]*)", output)
+            
             if match:
                 self._version_cache = match.group(1)
                 return self._version_cache
@@ -103,6 +107,7 @@ class MySQLService(BaseService):
 
         self._log(f"Data directory not found at: {data_dir}")
         self._log("Initializing MySQL data directory (first run)...")
+        self._set_status(ServiceStatus.INITIALIZING)
 
         exe = self.config.mysqld_exe
         data_dir.mkdir(parents=True, exist_ok=True)

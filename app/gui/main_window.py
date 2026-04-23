@@ -16,6 +16,7 @@ from app.services.php import PHPService
 from app.services.base_service import ServiceStatus
 from app.managers.vhost_manager import VHostManager
 from app.managers.php_ext_manager import PHPExtManager
+from app.managers.php_setting_manager import PHPSettingManager
 from app.gui.services_tab import ServicesTab
 from app.gui.vhost_tab import VHostTab
 from app.gui.php_ext_tab import PHPExtTab
@@ -27,8 +28,8 @@ class MainWindow:
     Hosts a Notebook with Services, Virtual Hosts, and PHP Extensions tabs.
     """
 
-    APP_TITLE = "MadServ v1.0.0"
-    APP_VERSION = "1.0.0"
+    APP_TITLE = "MadServ v1.1.0"
+    APP_VERSION = "1.1.0"
     REFRESH_INTERVAL_MS = 2000  # Status bar refresh
 
     def __init__(self, root: tk.Tk, config):
@@ -43,6 +44,7 @@ class MainWindow:
         # Managers
         self.vhost_manager = VHostManager(config)
         self.php_ext_manager = PHPExtManager(config)
+        self.php_setting_manager = PHPSettingManager(config)
 
         # Tray icon reference (optional)
         self._tray_icon = None
@@ -205,6 +207,7 @@ class MainWindow:
             php_ext_frame,
             config=self.config,
             ext_manager=self.php_ext_manager,
+            setting_manager=self.php_setting_manager,
             php_service=self.php,
         )
 
