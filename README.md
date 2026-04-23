@@ -19,11 +19,13 @@ Built with Python and tkinter. No external GUI framework required for the core a
 - **Activity Log** — Live log output from each service in the Services tab.
 - **MySQL data persistence** — Data stored in `data/mysql/` at app root, survives MySQL version upgrades.
 - **Node.js & Go Support** — Run Node.js and Go (Golang) applications as standalone services.
-- **Project Isolation** — Prepend specific binary paths (Node/Go/PHP) to the environment `PATH` for each service.
-- **Multi-Version Manager** — Easily switch between multiple versions of PHP, Node.js, and Go via dropdown selectors in Settings.
+- **Redis Support** — Run Redis server as a standalone service with automatic configuration.
+- **Project Isolation** — Prepend specific binary paths (Node/Go/PHP/Redis) to the environment `PATH` for each service.
+- **System PATH Management** — Easily add or remove configured binary paths to your Windows User PATH via Settings.
+- **Multi-Version Manager** — Easily switch between multiple versions of PHP, Node.js, Go, and Redis via dropdown selectors.
 - **Custom App Paths** — Configure custom project folders for Node.js and Go applications.
+- **Improved Settings Dialog** — Organized 2-column layout for better visibility of all configurations.
 - **Self-Healing Templates** — Embedded default configurations allow the app to run even if `config/` files are missing.
-- **Redis Support** — Added Redis as a standalone service with automatic configuration and binary detection.
 
 ---
 
@@ -93,10 +95,13 @@ MadServ/
     │   ├── mysql.py             # MySQL/MariaDB manager + auto-init
     │   ├── php.py               # PHP built-in server manager
     │   ├── node.py              # Node.js service manager
-    │   └── go.py                # Go (Golang) service manager
+    │   ├── go.py                # Go (Golang) service manager
+    │   └── redis.py             # Redis server manager
     ├── managers/
     │   ├── vhost_manager.py     # Virtual host scanning & config generation
-    │   └── php_ext_manager.py   # php.ini extension enable/disable + extension_dir fix
+    │   ├── php_ext_manager.py   # php.ini extension enable/disable + extension_dir fix
+    │   ├── php_setting_manager.py # php.ini general settings manager
+    │   └── env_manager.py       # Windows System PATH management
     └── gui/
         ├── main_window.py       # Root window, menu, toolbar, tray, settings dialog
         ├── services_tab.py      # Services table with colored start/stop/restart buttons
@@ -118,8 +123,19 @@ MadServ auto-detects executables on startup from these locations:
 | PHP     | `bin/php-*/`, XAMPP, `C:\php`, system PATH |
 | Node.js | `bin/node-*/`, `C:\Program Files\nodejs\`, system PATH |
 | Go      | `bin/go/`, `C:\Program Files\Go\`, system PATH |
+| Redis   | `bin/redis-*/`, `C:\Program Files\Redis\`, system PATH |
 
 To override or switch versions, open **File → Settings**. Use the **Binary Version Selection** dropdowns to pick from detected versions or use the **…** browse button to set paths manually.  
+The Settings dialog is organized into two columns for easier navigation.
+
+### System PATH Management
+
+You can globally add or remove the configured binary directories (PHP, MySQL, Node, etc.) from your Windows User PATH:
+1. Open **File → Settings**.
+2. Click **Add to PATH** to include all current service directories in your environment variables.
+3. Click **Remove from PATH** to clean up and remove them.
+*Note: You may need to restart your terminal or applications for these changes to take effect.*
+
 Settings are saved to `config.json` at the app root.
 
 ---
@@ -157,6 +173,14 @@ The domain suffix is `.test` by default — change it in **File → Settings →
 - Upgrading or replacing MySQL does not affect your databases
 - On first start, MadServ runs `mysqld --initialize-insecure` automatically
 - Default root password is **empty** — set one via a MySQL client after first start
+
+---
+
+## Redis
+
+- Runs `redis-server` with an auto-generated `redis.conf`.
+- Configuration includes custom port, log file, and data directory.
+- Supports MSYS2-based Redis builds on Windows by using relative paths for configuration.
 
 ---
 
